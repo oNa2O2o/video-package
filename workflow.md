@@ -160,4 +160,6 @@ mkdir -p "<工程目录>/成品" && cp "<返回的成片路径>" "<工程目录>
 | 需要独占开场的标题（标题期间不放正片） | build_v5 不支持：build 后用 patch 把所有片段整体后移标题时长（见女仆案例 `patch5.mjs`）；qa 会报「V1 0–Ns 黑场」，属预期 |
 | faster-whisper / whisper 段错误（segfault） | 改用 ElevenLabs：`elevenlabs speech-to-text convert --model-id scribe_v2 --file audio.wav --language-code jpn --diarize true`（带说话人区分）（2026-10-26） |
 | ElevenLabs 音乐分段报错 | composition plan 每段 `duration_ms` ≥ 3000（2026-10-26） |
+| 动漫角色抠图 rembg CPU 太慢（约 20 s/帧） | transformers `ZhengPeng7/BiRefNet_lite`，torch CUDA fp16（见猫娘报恩案例 `matte.py`）（2026-10-27） |
+| 动漫人脸检测不稳/误检 | 手动设脸位置锚点，只用离锚点近的可靠检测微调（见猫娘报恩案例 `gen.py`）（2026-10-27） |
 | build 报「A3 @t 与已有片段重叠」 | 同轨音效重叠：先用 ffmpeg/numpy 合成一个文件再放，或换空闲轨 |
