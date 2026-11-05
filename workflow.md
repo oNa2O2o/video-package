@@ -65,7 +65,7 @@ build_v5 做的事（与 UI/CLI 同一个 `model.js`）：
 4. 气泡 `bubble/liquid`：每句一条，开始 = 首词 − 0.25 s（思考气泡），结束 = 下一句前 / 选项点 / 未写台词开始前；`words` 为片段内相对秒。
 5. 选项：按源时间**倒序** `insertChoice`（切开所有音视频、整体后推、插定格）；`freezeAt` 指定定格源帧（plan 里的亮帧 / hold 帧）。
 6. 进度条 `meter/face`：标题结束起到片尾前；关键帧 0（3.2 s）→ 50（选项1 之后）→ 100（选项2 之后）；`lockedStage:3`；阶段头像用 `--portraits`（没有就留空，显示默认节点）。
-7. 片尾 `end/liquid`（模板默认 4.2 s，按 standards §6 尽量缩短，点完就结束）：title=结尾卡第 1 行、cta=第 2 行（下载/플레이 行）、characterName=卡片标题、图集=最后一幕 3 个亮帧。
+7. 片尾：**JP 素材先问用户是否用「JP 尾板模块」**（见 `modules/jp-endcard/README.md`）。用了就不加 `end/liquid`，build 完后跑 `endcard.py attach <工程>`（已有片尾用 `--replace-from <片尾起点>`）。否则用 `end/liquid`（模板默认 4.2 s，按 standards §6 尽量缩短，点完就结束）：title=结尾卡第 1 行、cta=第 2 行（下载/플레이 行）、characterName=卡片标题、图集=最后一幕 3 个亮帧。
 8. A2 BGM（默认 0.2，结尾淡出 0.6 s；**必须听得到**，按 standards §7 调整原声/BGM 比例）；`sfx` 可选放 A3（模板自带的出现/点击音效不用另放）。
 9. 文案审计：标题/气泡/问题/选项/片尾/说话人/阶段名逐条必须是全量文案的子串（忽略空白、`**`、`<br>`）或 `approvedUiStrings`，否则退出 1 且不保存。
 
@@ -94,7 +94,7 @@ node -e "const F=process.argv[1];(async()=>{const u='http://127.0.0.1:4400/api/p
 
 ## B. 自定义图层路线（无选项剧情 / 用户要新设计）
 1. **拆片**：抽帧（每 0.5–1 s）+ ASR + 能量，标出：有台词段、无台词段、脸的位置、亮帧（做头像/片尾）。无台词段不编台词（SKILL 规则 7）。
-2. **定方案**：按 `reference/standards.md` 选元素（标题、进度条、内心独白、钩子、片尾、BGM/音效），列出时间表；屏幕文字全部来自全量文案——文案没有的字先向用户申请（规则 5）。
+2. **定方案**：先对照 standards §0 投放原则（时间表标出第一个选项时间；台词/好感度/选项/输入框够大；选项 UI（选项、输入框、消息气泡）放中心偏下，好感度条留头顶；好感度大幅变化；片尾照 `reference/投放参考/`），再按 `reference/standards.md` 选元素（标题、进度条、内心独白、钩子、片尾——JP 可选 `modules/jp-endcard` 尾板模块，问用户、BGM/音效），列出时间表；屏幕文字全部来自全量文案——文案没有的字先向用户申请（规则 5）。
 3. **生成图层**：`<工程目录>/包装素材vN/脚本/gen.py`（PIL，1080×1920 透明整画布）；声音 `synth.py` 或音效库。格式与坑见 `reference/custom-layers.md`，参考 `cases/`。
 4. **写工程**：幂等脚本 `patch.mjs`（GET→改→PUT），自定义轨道 `X-*`，音效 A3–A6。
 5. 抽关键帧目视 → 进入 §5。
@@ -116,11 +116,13 @@ qa_v5 检查：占位未填写、同轨重叠、V1 空洞、A1 是否有原声�
 mmw export start "$F" --kind final --wait --quiet      # → 导出/<目录名>_成片_HHMMSS.mp4（h264 crf18 + aac，1080×1920）
 ```
 检查返回 `status:"done"`、`verify.fullDecode:true`、`verify.frames == frames`。单帧：`mmw export start "$F" --kind frame --frame 90 --wait`。
+编辑器导出的是 yuvj420p（用户播放器打不开），交付的成品统一转成 H.264 yuv420p：`ffmpeg -i <成片> -c:v libx264 -pix_fmt yuv420p -color_range tv -crf 17 -af alimiter=limit=0.89 -c:a aac -b:a 192k -movflags +faststart <成品>`。
 
 ## 7. 交付
 **每次修改后（给用户看）**：
 ```bash
-node "$SK/scripts/open_editor.mjs" "$F" --video "<最新校对预览.mp4>"     # 退出码 2 = 工程被旧页面改回 → 重新写入并再检查一次
+python "$SK/scripts/ver_draft.py" "<工程目录>"        # 时间戳改成 _vN，打印 LATEST 路径（用户 2026-11-05）
+node "$SK/scripts/open_editor.mjs" "$F" --video "<工程目录>/导出/<名>_校对预览_vN.mp4"     # 退出码 2 = 工程被旧页面改回 → 重新写入并再检查一次
 ```
 然后告诉用户：改了什么、预览路径、QA 结论（warn 逐条说明）、`确认单.md` 里的自动决定、声音“需要你听一下”。
 
@@ -129,7 +131,7 @@ node "$SK/scripts/open_editor.mjs" "$F" --video "<最新校对预览.mp4>"     #
 mmw export start "$F" --kind final --wait --quiet
 mkdir -p "<工程目录>/成品" && cp "<返回的成片路径>" "<工程目录>/成品/<目录名去掉日期前缀或用户指定名>.mp4"
 ```
-用 ffprobe 确认 1080×1920、时长、有音轨，再打开 `成品` 文件夹给用户。
+用 ffprobe 确认 1080×1920、时长、有音轨、yuv420p；再自检：产品 UI 卡片字段齐全且不出界、数值变化对准画面事件。然后打开 `成品` 文件夹给用户。
 
 **用户自己配 BGM 时**：导出「无 BGM 版」——A2 只保留选项段的悬疑 BGM（其余删掉），原声和音效不动，存 `成品/<名>_无BGM版.mp4`，告诉用户选项段的时间范围（他的 BGM 要避让）。
 
